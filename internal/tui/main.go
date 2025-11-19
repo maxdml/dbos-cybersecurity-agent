@@ -1,0 +1,100 @@
+package tui
+
+import (
+	"database/sql"
+	"fmt"
+
+	"sec-agent/internal/app"
+
+	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/dbos-inc/dbos-transact-golang/dbos"
+)
+
+// Run starts the TUI
+func Run(dbosCtx dbos.DBOSContext, db *sql.DB) error {
+	model := initialModel(dbosCtx, db)
+	p := tea.NewProgram(model)
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("TUI error: %w", err)
+	}
+	return nil
+}
+
+// ViewState represents the current view state
+type ViewState int
+
+const (
+	ViewBase ViewState = iota
+	ViewWorkflowsList
+	ViewWorkflowSteps
+	ViewScanning
+	ViewScanResults
+	ViewReportsList
+	ViewIssuesList
+	ViewIssueDetail
+	ViewIssueApproval
+	ViewIssueResult
+	ViewError
+)
+
+// App holds the TUI application state
+type App struct {
+	dbosCtx             dbos.DBOSContext
+	db                  *sql.DB
+	selectedMenuOption  int
+	menuOptions         []string
+	viewState           ViewState
+	workflows           []dbos.WorkflowStatus
+	workflowsTable      table.Model
+	selectedWorkflowID  string
+	workflowSteps       []dbos.StepInfo
+	workflowStepsTable  table.Model
+	scanResult          string
+	scanError           error
+	reports             []*app.Report
+	reportsTable        table.Model
+	selectedReportID    int
+	issues              []*app.Issue
+	issuesTable         table.Model
+	issueWorkflowID     string
+	currentIssue        *app.Issue
+	issueDetailViewport viewport.Model
+	issueDetailReady    bool
+	renderedIssueBody   string // Cached rendered markdown content
+	windowWidth         int
+	windowHeight        int
+	issueResult         string
+	issueError          error
+	lastError           error
+	errorSourceView     ViewState // Tracks which view redirected to the error view
+}
+
+// initialModel returns the initial model
+
+var baseViewOptions = []string{
+	" List workflows",
+	" Start vulnerability scan",
+	" Generate an Issue",
+	" Validate issues",
+}
+
+func initialModel(dbosCtx dbos.DBOSContext, db *sql.DB) App {
+	return App{
+		dbosCtx:            dbosCtx,
+		db:                 db,
+		selectedMenuOption: 0,
+		menuOptions:        baseViewOptions,
+		viewState:          ViewBase,
+		workflows:          []dbos.WorkflowStatus{},
+		selectedWorkflowID: "",
+		workflowSteps:      []dbos.StepInfo{},
+		reports:            []*app.Report{},
+	}
+}
+
+// Init is called when the program starts
+func (m App) Init() tea.Cmd {
+	return nil
+}
