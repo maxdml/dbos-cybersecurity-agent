@@ -230,7 +230,8 @@ func (m App) listReportsPendingForApproval() tea.Cmd {
 func (m App) startIssueWorkflow(reportID int) tea.Cmd {
 	return func() tea.Msg {
 		input := app.IssueWorkflowInput{ReportID: reportID}
-		handle, err := dbos.RunWorkflow(m.dbosCtx, app.IssueWorkflow, input)
+		noCancelCtx := dbos.WithoutCancel(m.dbosCtx)
+		handle, err := dbos.RunWorkflow(noCancelCtx, app.IssueWorkflow, input)
 		if err != nil {
 			return issueWorkflowStartedMsg{err: fmt.Errorf("failed to start issue workflow: %w", err)}
 		}
