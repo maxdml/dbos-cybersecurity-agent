@@ -10,6 +10,8 @@ import (
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 )
 
+// Find more sample reports there https://github.com/aquasecurity/trivy/tree/main/integration/testdata
+
 //go:embed reports/*
 var reports embed.FS
 

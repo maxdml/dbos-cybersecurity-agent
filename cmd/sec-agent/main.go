@@ -55,10 +55,11 @@ func initDBOS() (dbos.DBOSContext, error) {
 	conductorKey := os.Getenv("DBOS_CONDUCTOR_KEY")
 
 	ctx, err := dbos.NewDBOSContext(context.Background(), dbos.Config{
-		AppName:         "dbos-cybersec-agent",
-		DatabaseURL:     databaseURL,
-		ConductorAPIKey: conductorKey,
-		Logger:          slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AppName:            "dbos-cybersec-agent",
+		DatabaseURL:        databaseURL,
+		ConductorAPIKey:    conductorKey,
+		Logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ApplicationVersion: "dev",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create DBOS context: %w", err)
