@@ -128,6 +128,8 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.workflowSteps = msg
 		m.viewState = ViewWorkflowSteps
 		m.workflowStepsTable = m.buildWorkflowStepsTable()
+		// Clear fork success message when steps are refreshed
+		m.forkSuccessMessage = ""
 		return m, tea.ClearScreen
 	case errorMsg:
 		// Handle errors - display error message
@@ -260,6 +262,19 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Successfully reset - stay on base view
 		return m, tea.ClearScreen
+	case forkWorkflowMsg:
+		// Fork workflow completed
+		if msg.err != nil {
+			m.lastError = msg.err
+			m.errorSourceView = m.viewState
+			m.viewState = ViewError
+			return m, tea.ClearScreen
+		}
+		// Successfully forked - show success message
+		m.forkSuccessMessage = fmt.Sprintf("Workflow forked successfully! New workflow ID: %s", msg.newWorkflowID)
+		m.lastError = nil
+		// Refresh steps to show updated state
+		return m, m.getWorkflowSteps()
 	}
 
 	// Route to view-specific update handlers
@@ -367,6 +382,17 @@ func (m App) updateWorkflowStepsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.workflowSteps = []dbos.StepInfo{}
 			m.selectedWorkflowID = ""
 			return m, nil
+		case "f", "F":
+			// Fork workflow at selected step
+			if m.selectedWorkflowID == "" {
+				return m, nil
+			}
+			selectedIndex := m.workflowStepsTable.Cursor()
+			if selectedIndex >= 0 && selectedIndex < len(m.workflowSteps) {
+				selectedStep := m.workflowSteps[selectedIndex]
+				stepNumber := selectedStep.StepID
+				return m, m.forkWorkflow(m.selectedWorkflowID, stepNumber)
+			}
 		}
 	}
 	// Update table

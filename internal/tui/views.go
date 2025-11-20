@@ -39,8 +39,9 @@ func (m App) View() string {
 func (m App) viewBase() string {
 	// The header
 	s := "DBOS Cybersecurity Durable Agent\n\n"
-	s += "This durable agent can analyze Trivy reports and help you generate issues against them.\n\n"
+	s += "This durable agent can analyze security scans and generate issues for them.\n\n"
 	s += "Durable agents resume where they left off and can be forked with updated instructions.\n\n"
+	s += "Start by scanning reports, then generate an issue, and finally approve/reject the issue.\n\n"
 
 	// Iterate over our choices
 	for i, choice := range m.menuOptions {
@@ -89,7 +90,15 @@ func (m App) viewWorkflowSteps() string {
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240"))
 
-	return fmt.Sprintf("Workflow Steps: %s\n\n%s\n\nPress q to go back.\n", m.selectedWorkflowID, tableStyle.Render(m.workflowStepsTable.View()))
+	helpText := "Press [f] to fork at selected step, q to go back."
+	if m.forkSuccessMessage != "" {
+		successStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("2")).
+			Bold(true)
+		helpText = successStyle.Render(m.forkSuccessMessage) + "\n\n" + helpText
+	}
+
+	return fmt.Sprintf("Workflow Steps: %s\n\n%s\n\n%s\n", m.selectedWorkflowID, tableStyle.Render(m.workflowStepsTable.View()), helpText)
 }
 
 func (m App) viewScanning() string {

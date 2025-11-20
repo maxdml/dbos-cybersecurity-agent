@@ -76,8 +76,9 @@ type App struct {
 	scanCompletedReports     int
 	scanCompletedReportNames []string // Names of completed reports
 	scanWorkflowID           string
-	checkingPendingScan      bool // Flag to track if we're checking for pending scan from menu
-	isResumedWorkflow        bool // Flag to track if the current workflow was resumed
+	checkingPendingScan      bool   // Flag to track if we're checking for pending scan from menu
+	isResumedWorkflow        bool   // Flag to track if the current workflow was resumed
+	forkSuccessMessage       string // Message to show when fork is successful
 }
 
 // initialModel returns the initial model

@@ -350,3 +350,25 @@ func (m App) resetApp() tea.Cmd {
 		return resetAppMsg{err: nil}
 	}
 }
+
+// forkWorkflowMsg is a message type for fork workflow result
+type forkWorkflowMsg struct {
+	newWorkflowID string
+	err           error
+}
+
+// forkWorkflow returns a command that forks a workflow from a specific step
+func (m App) forkWorkflow(workflowID string, stepNumber int) tea.Cmd {
+	return func() tea.Msg {
+		input := dbos.ForkWorkflowInput{
+			OriginalWorkflowID: workflowID,
+			StartStep:          uint(stepNumber),
+		}
+		handle, err := dbos.ForkWorkflow[any](m.dbosCtx, input)
+		if err != nil {
+			return forkWorkflowMsg{err: fmt.Errorf("failed to fork workflow: %w", err)}
+		}
+		newID := handle.GetWorkflowID()
+		return forkWorkflowMsg{newWorkflowID: newID, err: nil}
+	}
+}
