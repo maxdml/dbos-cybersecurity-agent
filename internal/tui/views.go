@@ -39,7 +39,7 @@ func (m App) View() string {
 func (m App) viewBase() string {
 	// The header
 	s := "DBOS Cybersecurity Agent\n\n"
-	s += "This agent can analyze Trivy reports from github repositories and help you generate issues against them.\n\n"
+	s += "This agent can analyze Trivy reports and help you generate issues against them.\n\n"
 
 	// Iterate over our choices
 	for i, choice := range m.menuOptions {
@@ -95,12 +95,28 @@ func (m App) viewScanning() string {
 	const padding = 2
 	pad := strings.Repeat(" ", padding)
 
-	s := "\nRunning vulnerability scan...\n\n"
+	var s string
+	// Show different message based on whether workflow was resumed or newly started
+	if m.isResumedWorkflow {
+		s = "\nResuming vulnerability scan workflow...\n"
+		s += pad + "(Workflow resumed from previous session)\n\n"
+	} else {
+		s = "\nRunning vulnerability scan...\n\n"
+	}
 
 	// Show progress bar if we have a total count
 	if m.scanTotalReports > 0 {
+		// Show completed report names before the progress bar if any
+		if len(m.scanCompletedReportNames) > 0 {
+			s += pad + "Completed reports:\n"
+			for _, name := range m.scanCompletedReportNames {
+				s += pad + "  ✓ " + name + "\n"
+			}
+			s += "\n"
+		}
+
 		progressBar := m.scanProgress.ViewAs(m.scanProgressPercent)
-		s += pad + progressBar + "\n\n"
+		s += pad + progressBar + "\n"
 		s += fmt.Sprintf("%s%d/%d scans completed\n", pad, m.scanCompletedReports, m.scanTotalReports)
 	} else {
 		s += pad + "Initializing...\n"

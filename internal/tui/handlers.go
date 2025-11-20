@@ -27,6 +27,26 @@ func (m App) listWorkflows() tea.Cmd {
 	}
 }
 
+// checkPendingScanWorkflow checks if there's a pending scan workflow
+func (m App) checkPendingScanWorkflow() tea.Cmd {
+	return func() tea.Msg {
+		workflows, err := dbos.ListWorkflows(m.dbosCtx)
+		if err != nil {
+			return pendingScanWorkflowMsg{err: fmt.Errorf("failed to list workflows: %w", err)}
+		}
+
+		// Look for a pending "scan_workflow" workflow
+		for _, workflow := range workflows {
+			if workflow.Name == "scan_workflow" && string(workflow.Status) == "PENDING" {
+				return pendingScanWorkflowMsg{workflowID: workflow.ID, err: nil}
+			}
+		}
+
+		// No pending workflow found
+		return pendingScanWorkflowMsg{workflowID: "", err: nil}
+	}
+}
+
 // startScanWorkflow returns a command that starts the scan workflow
 func (m App) startScanWorkflow() tea.Cmd {
 	return func() tea.Msg {
@@ -41,7 +61,7 @@ func (m App) startScanWorkflow() tea.Cmd {
 			return scanResultMsg{err: fmt.Errorf("no report files found")}
 		}
 
-		// Start workflow asynchronously
+		// Start workflow asynchronously with fixed workflow ID for determinism
 		handle, err := dbos.RunWorkflow(m.dbosCtx, app.ScanWorkflow, "")
 		if err != nil {
 			return scanResultMsg{err: fmt.Errorf("failed to start scan workflow: %w", err)}
@@ -65,23 +85,35 @@ type scanWorkflowStartedMsg struct {
 	err          error
 }
 
+// pendingScanWorkflowMsg is sent when checking for pending scan workflows
+type pendingScanWorkflowMsg struct {
+	workflowID string
+	err        error
+}
+
 // pollScanProgress polls the workflow steps to get progress
 func (m App) pollScanProgress() tea.Cmd {
 	return func() tea.Msg {
 		if m.scanWorkflowID == "" {
-			return scanProgressMsg{completed: 0, total: 0, done: false}
+			return scanProgressMsg{completed: 0, total: 0, done: false, completedNames: []string{}}
 		}
 
 		steps, err := dbos.GetWorkflowSteps(m.dbosCtx, m.scanWorkflowID)
 		if err != nil {
-			return scanProgressMsg{completed: 0, total: 0, done: false, err: err}
+			return scanProgressMsg{completed: 0, total: 0, done: false, err: err, completedNames: []string{}}
 		}
 
-		// Count completed "storeReport-*" steps
+		// Count completed "storeReport-*" steps and extract report names
 		completed := 0
+		completedNames := []string{}
 		for _, step := range steps {
 			if strings.HasPrefix(step.StepName, "storeReport-") && step.Error == nil {
 				completed++
+				// Extract report name from step name (format: "storeReport-{repoName}")
+				reportName := strings.TrimPrefix(step.StepName, "storeReport-")
+				if reportName != "" {
+					completedNames = append(completedNames, reportName)
+				}
 			}
 		}
 
@@ -92,20 +124,22 @@ func (m App) pollScanProgress() tea.Cmd {
 		}
 
 		return scanProgressMsg{
-			completed: completed,
-			total:     m.scanTotalReports,
-			done:      done,
-			err:       nil,
+			completed:      completed,
+			total:          m.scanTotalReports,
+			done:           done,
+			completedNames: completedNames,
+			err:            nil,
 		}
 	}
 }
 
 // scanProgressMsg is sent when progress is updated
 type scanProgressMsg struct {
-	completed int
-	total     int
-	done      bool
-	err       error
+	completed      int
+	total          int
+	done           bool
+	completedNames []string // Names of completed reports
+	err            error
 }
 
 // Message types

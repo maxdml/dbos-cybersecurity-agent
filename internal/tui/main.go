@@ -42,39 +42,42 @@ const (
 
 // App holds the TUI application state
 type App struct {
-	dbosCtx              dbos.DBOSContext
-	db                   *sql.DB
-	selectedMenuOption   int
-	menuOptions          []string
-	viewState            ViewState
-	workflows            []dbos.WorkflowStatus
-	workflowsTable       table.Model
-	selectedWorkflowID   string
-	workflowSteps        []dbos.StepInfo
-	workflowStepsTable   table.Model
-	scanResult           string
-	scanError            error
-	reports              []*app.Report
-	reportsTable         table.Model
-	selectedReportID     int
-	issues               []*app.Issue
-	issuesTable          table.Model
-	issueWorkflowID      string
-	currentIssue         *app.Issue
-	issueDetailViewport  viewport.Model
-	issueDetailReady     bool
-	renderedIssueBody    string // Cached rendered markdown content
-	windowWidth          int
-	windowHeight         int
-	issueResult          string
-	issueError           error
-	lastError            error
-	errorSourceView      ViewState // Tracks which view redirected to the error view
-	scanProgress         progress.Model
-	scanProgressPercent  float64
-	scanTotalReports     int
-	scanCompletedReports int
-	scanWorkflowID       string
+	dbosCtx                  dbos.DBOSContext
+	db                       *sql.DB
+	selectedMenuOption       int
+	menuOptions              []string
+	viewState                ViewState
+	workflows                []dbos.WorkflowStatus
+	workflowsTable           table.Model
+	selectedWorkflowID       string
+	workflowSteps            []dbos.StepInfo
+	workflowStepsTable       table.Model
+	scanResult               string
+	scanError                error
+	reports                  []*app.Report
+	reportsTable             table.Model
+	selectedReportID         int
+	issues                   []*app.Issue
+	issuesTable              table.Model
+	issueWorkflowID          string
+	currentIssue             *app.Issue
+	issueDetailViewport      viewport.Model
+	issueDetailReady         bool
+	renderedIssueBody        string // Cached rendered markdown content
+	windowWidth              int
+	windowHeight             int
+	issueResult              string
+	issueError               error
+	lastError                error
+	errorSourceView          ViewState // Tracks which view redirected to the error view
+	scanProgress             progress.Model
+	scanProgressPercent      float64
+	scanTotalReports         int
+	scanCompletedReports     int
+	scanCompletedReportNames []string // Names of completed reports
+	scanWorkflowID           string
+	checkingPendingScan      bool // Flag to track if we're checking for pending scan from menu
+	isResumedWorkflow        bool // Flag to track if the current workflow was resumed
 }
 
 // initialModel returns the initial model
@@ -94,24 +97,28 @@ func initialModel(dbosCtx dbos.DBOSContext, db *sql.DB) App {
 	prog.Width = defaultWidth
 
 	return App{
-		dbosCtx:              dbosCtx,
-		db:                   db,
-		selectedMenuOption:   0,
-		menuOptions:          baseViewOptions,
-		viewState:            ViewBase,
-		workflows:            []dbos.WorkflowStatus{},
-		selectedWorkflowID:   "",
-		workflowSteps:        []dbos.StepInfo{},
-		reports:              []*app.Report{},
-		scanProgress:         prog,
-		scanProgressPercent:  0.0,
-		scanTotalReports:     0,
-		scanCompletedReports: 0,
-		scanWorkflowID:       "",
+		dbosCtx:                  dbosCtx,
+		db:                       db,
+		selectedMenuOption:       0,
+		menuOptions:              baseViewOptions,
+		viewState:                ViewBase,
+		workflows:                []dbos.WorkflowStatus{},
+		selectedWorkflowID:       "",
+		workflowSteps:            []dbos.StepInfo{},
+		reports:                  []*app.Report{},
+		scanProgress:             prog,
+		scanProgressPercent:      0.0,
+		scanTotalReports:         0,
+		scanCompletedReports:     0,
+		scanCompletedReportNames: []string{},
+		scanWorkflowID:           "",
+		checkingPendingScan:      false,
+		isResumedWorkflow:        false,
 	}
 }
 
 // Init is called when the program starts
 func (m App) Init() tea.Cmd {
-	return nil
+	// Check for pending scan workflow on startup
+	return m.checkPendingScanWorkflow()
 }

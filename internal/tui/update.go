@@ -22,6 +22,44 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Handle messages that apply to all views
 	switch msg := msg.(type) {
+	case pendingScanWorkflowMsg:
+		// Check for pending scan workflow (on startup or menu selection)
+		if msg.err != nil {
+			// On error, just proceed to base view
+			m.checkingPendingScan = false
+			return m, nil
+		}
+		if msg.workflowID != "" {
+			// Found a pending workflow - resume it
+			m.scanWorkflowID = msg.workflowID
+			m.isResumedWorkflow = true
+			// Get total report count
+			reportFiles, err := app.ReadReportFiles()
+			if err != nil {
+				// If we can't read report files, still show scanning view but without progress
+				m.scanTotalReports = 0
+			} else {
+				m.scanTotalReports = len(reportFiles)
+			}
+			m.scanCompletedReports = 0
+			m.scanCompletedReportNames = []string{}
+			m.scanProgressPercent = 0.0
+			m.viewState = ViewScanning
+			m.checkingPendingScan = false
+			// Start polling for progress
+			return m, m.tickScanProgress()
+		}
+		// No pending workflow found
+		// If checkingPendingScan is true, this means user selected "Start vulnerability scan" menu option
+		// So we should start a new workflow
+		if m.checkingPendingScan {
+			m.checkingPendingScan = false
+			m.isResumedWorkflow = false
+			m.viewState = ViewScanning
+			return m, tea.Batch(tea.ClearScreen, m.startScanWorkflow())
+		}
+		// Otherwise, just proceed normally (startup check with no pending workflow)
+		return m, nil
 	case []dbos.WorkflowStatus:
 		// Received workflows list
 		m.workflows = msg
@@ -39,7 +77,9 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scanWorkflowID = msg.workflowID
 		m.scanTotalReports = msg.totalReports
 		m.scanCompletedReports = 0
+		m.scanCompletedReportNames = []string{}
 		m.scanProgressPercent = 0.0
+		m.isResumedWorkflow = false // New workflow, not resumed
 		// Start polling for progress (tickScanProgress will call pollScanProgress after delay)
 		return m, m.tickScanProgress()
 	case scanProgressMsg:
@@ -49,6 +89,7 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.tickScanProgress()
 		}
 		m.scanCompletedReports = msg.completed
+		m.scanCompletedReportNames = msg.completedNames
 		if msg.total > 0 {
 			m.scanProgressPercent = float64(msg.completed) / float64(msg.total)
 		}
@@ -254,7 +295,7 @@ func (m App) updateBaseView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c", "q", "esc":
 			return m, tea.Quit
 		case "down":
 			m.selectedMenuOption = (m.selectedMenuOption + 1) % len(m.menuOptions)
@@ -268,9 +309,10 @@ func (m App) updateBaseView(msg tea.Msg) (tea.Model, tea.Cmd) {
 				//return m, tea.Batch(tea.ClearScreen, m.listWorkflows())
 				return m, m.listWorkflows()
 			case 1:
-				// Switch to scanning view and start the workflow
-				m.viewState = ViewScanning
-				return m, tea.Batch(tea.ClearScreen, m.startScanWorkflow())
+				// Check if there's already a pending scan workflow
+				// If so, redirect to scanning view instead of starting a new one
+				m.checkingPendingScan = true
+				return m, m.checkPendingScanWorkflow()
 			case 2:
 				// Generate an Issue - list reports pending for approval
 				return m, tea.Batch(tea.ClearScreen, m.listReportsPendingForApproval())
@@ -293,7 +335,7 @@ func (m App) updateWorkflowsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
-		case "q":
+		case "q", "esc":
 			// Go back to base view and clear workflows
 			m.viewState = ViewBase
 			m.workflows = []dbos.WorkflowStatus{}
@@ -319,7 +361,7 @@ func (m App) updateWorkflowStepsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
-		case "q":
+		case "q", "esc":
 			// Go back to workflows list view and clear steps
 			m.viewState = ViewWorkflowsList
 			m.workflowSteps = []dbos.StepInfo{}
@@ -405,7 +447,7 @@ func (m App) updateIssuesView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
-		case "q":
+		case "q", "esc":
 			// Go back to base view and clear issues
 			m.viewState = ViewBase
 			m.issues = []*app.Issue{}
@@ -573,7 +615,7 @@ func (m App) updateIssueApprovalView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "n", "N":
 			// Reject the issue
 			return m, m.sendIssueApproval(m.issueWorkflowID, false)
-		case "q":
+		case "q", "esc":
 			// Go back (but workflow is still waiting, so this might not be ideal)
 			// For now, allow going back
 			m.viewState = ViewBase
@@ -591,7 +633,7 @@ func (m App) updateIssueResultView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
-		case "q":
+		case "q", "esc":
 			// Go back to base view and clear issue result
 			m.viewState = ViewBase
 			m.issueResult = ""
@@ -692,7 +734,7 @@ func (m App) updateScanResultsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
-		case "q":
+		case "q", "esc":
 			// Go back to base view and clear scan results
 			m.viewState = ViewBase
 			m.scanResult = ""
@@ -709,7 +751,7 @@ func (m App) updateErrorView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
-		case "q":
+		case "q", "esc":
 			// Go back to base view and clear error
 			m.viewState = ViewBase
 			m.lastError = nil
@@ -727,7 +769,7 @@ func (m App) updateReportsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c":
 			return m, tea.Quit
-		case "q":
+		case "q", "esc":
 			// Go back to base view and clear reports
 			m.viewState = ViewBase
 			m.reports = []*app.Report{}
