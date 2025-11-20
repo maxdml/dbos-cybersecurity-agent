@@ -28,6 +28,39 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewState = ViewWorkflowsList
 		m.workflowsTable = m.buildWorkflowsTable()
 		return m, tea.ClearScreen
+	case scanWorkflowStartedMsg:
+		// Scan workflow started - initialize progress tracking
+		if msg.err != nil {
+			m.scanError = msg.err
+			m.scanResult = ""
+			m.viewState = ViewScanResults
+			return m, tea.ClearScreen
+		}
+		m.scanWorkflowID = msg.workflowID
+		m.scanTotalReports = msg.totalReports
+		m.scanCompletedReports = 0
+		m.scanProgressPercent = 0.0
+		// Start polling for progress (tickScanProgress will call pollScanProgress after delay)
+		return m, m.tickScanProgress()
+	case scanProgressMsg:
+		// Received progress update
+		if msg.err != nil {
+			// On error, continue polling but don't update progress
+			return m, m.tickScanProgress()
+		}
+		m.scanCompletedReports = msg.completed
+		if msg.total > 0 {
+			m.scanProgressPercent = float64(msg.completed) / float64(msg.total)
+		}
+		if msg.done {
+			// All reports are done, stop progress polling and wait for final result
+			return m, m.tickWaitForResult()
+		}
+		// Continue polling
+		return m, m.tickScanProgress()
+	case scanResultNotReadyMsg:
+		// Result not ready yet, continue waiting
+		return m, m.tickWaitForResult()
 	case scanResultMsg:
 		// Received scan result
 		if msg.err != nil {
@@ -176,6 +209,16 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.issueDetailReady = false
 		}
 		return m, tea.ClearScreen
+	case resetAppMsg:
+		// Reset app completed
+		if msg.err != nil {
+			m.lastError = msg.err
+			m.errorSourceView = m.viewState
+			m.viewState = ViewError
+			return m, tea.ClearScreen
+		}
+		// Successfully reset - stay on base view
+		return m, tea.ClearScreen
 	}
 
 	// Route to view-specific update handlers
@@ -234,6 +277,9 @@ func (m App) updateBaseView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 3:
 				// Validate issues - list all issues
 				return m, tea.Batch(tea.ClearScreen, m.listAllIssues())
+			case 4:
+				// Reset app - clear all issues and reports
+				return m, m.resetApp()
 			}
 		}
 	}
@@ -627,6 +673,15 @@ func (m App) updateScanningView(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
 		}
+	case tea.WindowSizeMsg:
+		// Update progress bar width on window resize
+		const padding = 2
+		const maxWidth = 80
+		m.scanProgress.Width = msg.Width - padding*2 - 4
+		if m.scanProgress.Width > maxWidth {
+			m.scanProgress.Width = maxWidth
+		}
+		return m, nil
 	}
 	return m, nil
 }

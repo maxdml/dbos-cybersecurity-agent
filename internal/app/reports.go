@@ -102,7 +102,7 @@ func GetReportsPendingForApproval() ([]*Report, error) {
 		AND NOT EXISTS (
 			SELECT 1 FROM issues i
 			WHERE i.repo_name = r.repo_name
-			AND i.status = 'approved'
+			AND (i.status = 'approved' OR i.status = 'rejected')
 		)
 		ORDER BY r.created_at DESC`
 

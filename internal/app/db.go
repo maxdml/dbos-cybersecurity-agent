@@ -70,3 +70,18 @@ func createTables() error {
 func GetDB() *sql.DB {
 	return db
 }
+
+// ClearAllData deletes all rows from the issues and reports tables
+func ClearAllData() error {
+	// Delete all issues
+	if _, err := db.Exec("DELETE FROM issues"); err != nil {
+		return fmt.Errorf("failed to clear issues table: %w", err)
+	}
+
+	// Delete all reports
+	if _, err := db.Exec("DELETE FROM reports"); err != nil {
+		return fmt.Errorf("failed to clear reports table: %w", err)
+	}
+
+	return nil
+}

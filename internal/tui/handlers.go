@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"strings"
+	"time"
 
 	"sec-agent/internal/app"
 
@@ -28,18 +30,82 @@ func (m App) listWorkflows() tea.Cmd {
 // startScanWorkflow returns a command that starts the scan workflow
 func (m App) startScanWorkflow() tea.Cmd {
 	return func() tea.Msg {
+		// First, get total report count
+		reportFiles, err := app.ReadReportFiles()
+		if err != nil {
+			return scanResultMsg{err: fmt.Errorf("failed to read report files: %w", err)}
+		}
+
+		totalReports := len(reportFiles)
+		if totalReports == 0 {
+			return scanResultMsg{err: fmt.Errorf("no report files found")}
+		}
+
+		// Start workflow asynchronously
 		handle, err := dbos.RunWorkflow(m.dbosCtx, app.ScanWorkflow, "")
 		if err != nil {
 			return scanResultMsg{err: fmt.Errorf("failed to start scan workflow: %w", err)}
 		}
 
-		result, err := handle.GetResult()
-		if err != nil {
-			return scanResultMsg{err: fmt.Errorf("scan workflow failed: %w", err)}
+		workflowID := handle.GetWorkflowID()
+
+		// Return a message with workflow ID and total count to start polling
+		return scanWorkflowStartedMsg{
+			workflowID:   workflowID,
+			totalReports: totalReports,
+			err:          nil,
+		}
+	}
+}
+
+// scanWorkflowStartedMsg is sent when the scan workflow starts
+type scanWorkflowStartedMsg struct {
+	workflowID   string
+	totalReports int
+	err          error
+}
+
+// pollScanProgress polls the workflow steps to get progress
+func (m App) pollScanProgress() tea.Cmd {
+	return func() tea.Msg {
+		if m.scanWorkflowID == "" {
+			return scanProgressMsg{completed: 0, total: 0, done: false}
 		}
 
-		return scanResultMsg{result: result, err: nil}
+		steps, err := dbos.GetWorkflowSteps(m.dbosCtx, m.scanWorkflowID)
+		if err != nil {
+			return scanProgressMsg{completed: 0, total: 0, done: false, err: err}
+		}
+
+		// Count completed "storeReport-*" steps
+		completed := 0
+		for _, step := range steps {
+			if strings.HasPrefix(step.StepName, "storeReport-") && step.Error == nil {
+				completed++
+			}
+		}
+
+		// Check if workflow is done by checking if all reports are completed
+		done := false
+		if m.scanTotalReports > 0 && completed >= m.scanTotalReports {
+			done = true
+		}
+
+		return scanProgressMsg{
+			completed: completed,
+			total:     m.scanTotalReports,
+			done:      done,
+			err:       nil,
+		}
 	}
+}
+
+// scanProgressMsg is sent when progress is updated
+type scanProgressMsg struct {
+	completed int
+	total     int
+	done      bool
+	err       error
 }
 
 // Message types
@@ -50,6 +116,49 @@ type errorMsg struct {
 type scanResultMsg struct {
 	result []string
 	err    error
+}
+
+// waitForScanResult checks if the scan workflow result is ready
+func (m App) waitForScanResult() tea.Cmd {
+	return func() tea.Msg {
+		if m.scanWorkflowID == "" {
+			return scanResultMsg{err: fmt.Errorf("no workflow ID")}
+		}
+
+		// Retrieve the workflow handle
+		handle, err := dbos.RetrieveWorkflow[[]string](m.dbosCtx, m.scanWorkflowID)
+		if err != nil {
+			// If we can't retrieve the workflow, return error
+			return scanResultMsg{err: fmt.Errorf("failed to retrieve workflow: %w", err)}
+		}
+
+		// Try to get the result (non-blocking check)
+		result, err := handle.GetResult()
+		if err != nil {
+			// Result not ready yet, return a message to retry
+			return scanResultNotReadyMsg{}
+		}
+
+		// Result is ready
+		return scanResultMsg{result: result, err: nil}
+	}
+}
+
+// scanResultNotReadyMsg indicates the result is not ready yet and we should retry
+type scanResultNotReadyMsg struct{}
+
+// tickScanProgress returns a command that polls progress after a delay
+func (m App) tickScanProgress() tea.Cmd {
+	return tea.Tick(300*time.Millisecond, func(time.Time) tea.Msg {
+		return m.pollScanProgress()()
+	})
+}
+
+// tickWaitForResult returns a command that checks for result after a delay
+func (m App) tickWaitForResult() tea.Cmd {
+	return tea.Tick(300*time.Millisecond, func(time.Time) tea.Msg {
+		return m.waitForScanResult()()
+	})
 }
 
 // getWorkflowSteps returns a command that gets workflow steps
@@ -189,4 +298,20 @@ func renderMarkdown(markdown string, width int) (string, error) {
 	}
 
 	return out, nil
+}
+
+// resetAppMsg is a message type for reset app result
+type resetAppMsg struct {
+	err error
+}
+
+// resetApp returns a command that clears all issues and reports
+func (m App) resetApp() tea.Cmd {
+	return func() tea.Msg {
+		err := app.ClearAllData()
+		if err != nil {
+			return resetAppMsg{err: fmt.Errorf("failed to reset app: %w", err)}
+		}
+		return resetAppMsg{err: nil}
+	}
 }

@@ -39,6 +39,7 @@ func (m App) View() string {
 func (m App) viewBase() string {
 	// The header
 	s := "DBOS Cybersecurity Agent\n\n"
+	s += "This agent can analyze Trivy reports from github repositories and help you generate issues against them.\n\n"
 
 	// Iterate over our choices
 	for i, choice := range m.menuOptions {
@@ -91,7 +92,23 @@ func (m App) viewWorkflowSteps() string {
 }
 
 func (m App) viewScanning() string {
-	return "Running vulnerability scan...\n\nPlease wait...\n"
+	const padding = 2
+	pad := strings.Repeat(" ", padding)
+
+	s := "\nRunning vulnerability scan...\n\n"
+
+	// Show progress bar if we have a total count
+	if m.scanTotalReports > 0 {
+		progressBar := m.scanProgress.ViewAs(m.scanProgressPercent)
+		s += pad + progressBar + "\n\n"
+		s += fmt.Sprintf("%s%d/%d scans completed\n", pad, m.scanCompletedReports, m.scanTotalReports)
+	} else {
+		s += pad + "Initializing...\n"
+	}
+
+	s += "\n" + pad + "Press Ctrl+C to quit.\n"
+
+	return s
 }
 
 func (m App) viewScanResults() string {

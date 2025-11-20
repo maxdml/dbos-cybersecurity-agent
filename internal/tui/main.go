@@ -6,6 +6,7 @@ import (
 
 	"sec-agent/internal/app"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -41,34 +42,39 @@ const (
 
 // App holds the TUI application state
 type App struct {
-	dbosCtx             dbos.DBOSContext
-	db                  *sql.DB
-	selectedMenuOption  int
-	menuOptions         []string
-	viewState           ViewState
-	workflows           []dbos.WorkflowStatus
-	workflowsTable      table.Model
-	selectedWorkflowID  string
-	workflowSteps       []dbos.StepInfo
-	workflowStepsTable  table.Model
-	scanResult          string
-	scanError           error
-	reports             []*app.Report
-	reportsTable        table.Model
-	selectedReportID    int
-	issues              []*app.Issue
-	issuesTable         table.Model
-	issueWorkflowID     string
-	currentIssue        *app.Issue
-	issueDetailViewport viewport.Model
-	issueDetailReady    bool
-	renderedIssueBody   string // Cached rendered markdown content
-	windowWidth         int
-	windowHeight        int
-	issueResult         string
-	issueError          error
-	lastError           error
-	errorSourceView     ViewState // Tracks which view redirected to the error view
+	dbosCtx              dbos.DBOSContext
+	db                   *sql.DB
+	selectedMenuOption   int
+	menuOptions          []string
+	viewState            ViewState
+	workflows            []dbos.WorkflowStatus
+	workflowsTable       table.Model
+	selectedWorkflowID   string
+	workflowSteps        []dbos.StepInfo
+	workflowStepsTable   table.Model
+	scanResult           string
+	scanError            error
+	reports              []*app.Report
+	reportsTable         table.Model
+	selectedReportID     int
+	issues               []*app.Issue
+	issuesTable          table.Model
+	issueWorkflowID      string
+	currentIssue         *app.Issue
+	issueDetailViewport  viewport.Model
+	issueDetailReady     bool
+	renderedIssueBody    string // Cached rendered markdown content
+	windowWidth          int
+	windowHeight         int
+	issueResult          string
+	issueError           error
+	lastError            error
+	errorSourceView      ViewState // Tracks which view redirected to the error view
+	scanProgress         progress.Model
+	scanProgressPercent  float64
+	scanTotalReports     int
+	scanCompletedReports int
+	scanWorkflowID       string
 }
 
 // initialModel returns the initial model
@@ -76,21 +82,32 @@ type App struct {
 var baseViewOptions = []string{
 	" List workflows",
 	" Start vulnerability scan",
-	" Generate an Issue",
-	" Validate issues",
+	" Generate an issue",
+	" Manage issues",
+	" Reset issues and reports database",
 }
 
 func initialModel(dbosCtx dbos.DBOSContext, db *sql.DB) App {
+	const defaultWidth = 40
+
+	prog := progress.New(progress.WithDefaultGradient())
+	prog.Width = defaultWidth
+
 	return App{
-		dbosCtx:            dbosCtx,
-		db:                 db,
-		selectedMenuOption: 0,
-		menuOptions:        baseViewOptions,
-		viewState:          ViewBase,
-		workflows:          []dbos.WorkflowStatus{},
-		selectedWorkflowID: "",
-		workflowSteps:      []dbos.StepInfo{},
-		reports:            []*app.Report{},
+		dbosCtx:              dbosCtx,
+		db:                   db,
+		selectedMenuOption:   0,
+		menuOptions:          baseViewOptions,
+		viewState:            ViewBase,
+		workflows:            []dbos.WorkflowStatus{},
+		selectedWorkflowID:   "",
+		workflowSteps:        []dbos.StepInfo{},
+		reports:              []*app.Report{},
+		scanProgress:         prog,
+		scanProgressPercent:  0.0,
+		scanTotalReports:     0,
+		scanCompletedReports: 0,
+		scanWorkflowID:       "",
 	}
 }
 

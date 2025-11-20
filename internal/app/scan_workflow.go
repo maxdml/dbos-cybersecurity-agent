@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 )
@@ -18,7 +17,7 @@ var reports embed.FS
 func ScanWorkflow(ctx dbos.DBOSContext, _ string) ([]string, error) {
 	// Step 1: Read all report files from reports folder
 	reportFiles, err := dbos.RunAsStep(ctx, func(ctx context.Context) ([]string, error) {
-		return readReportFiles()
+		return ReadReportFiles()
 	}, dbos.WithStepName("readReportFiles"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read report files: %w", err)
@@ -60,15 +59,15 @@ func ScanWorkflow(ctx dbos.DBOSContext, _ string) ([]string, error) {
 			continue
 		}
 
-		scannedRepos = append(scannedRepos, fmt.Sprintf("Processed %s: vulnerabilities=%v", repoName, hasVuln))
+		scannedRepos = append(scannedRepos, fmt.Sprintf("Processed %s: vulnerabilities=%v\n\n", repoName, hasVuln))
 	}
 
 	scannedRepos = append(scannedRepos, fmt.Sprintf("Scan completed: %d total reports, %d vulnerable reports found", len(scannedRepos), vulnerableCount))
-	time.Sleep(10 * time.Second)
 	return scannedRepos, nil
 }
 
-func readReportFiles() ([]string, error) {
+// ReadReportFiles reads all report files from the reports folder
+func ReadReportFiles() ([]string, error) {
 	var reportFiles []string
 
 	entries, err := reports.ReadDir("reports")
