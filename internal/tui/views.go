@@ -38,11 +38,9 @@ func (m App) View() string {
 
 func (m App) viewBase() string {
 	// The header
-	s := "DBOS Cybersecurity Agent\n\n"
-	s += "This agent can analyze Trivy reports and help you generate issues against them.\n\n"
-	s += "Agents can run for a long time and run into all sorts of troubles. \n\n"
-	s += "For example, consulting AI to analyze thousands of reports could fail in the middle \n\n"
-	s += "Wouldn't it be nice if the agent could resume from where it left off?\n\n"
+	s := "DBOS Cybersecurity Durable Agent\n\n"
+	s += "This durable agent can analyze Trivy reports and help you generate issues against them.\n\n"
+	s += "Durable agents resume where they left off and can be forked with updated instructions.\n\n"
 
 	// Iterate over our choices
 	for i, choice := range m.menuOptions {
