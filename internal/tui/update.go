@@ -133,17 +133,13 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.ClearScreen
 	case errorMsg:
 		// Handle errors - display error message
-		m.lastError = msg.err
-		m.errorSourceView = m.viewState // Store the view that caused the error
-		m.viewState = ViewError
-		return m, tea.ClearScreen
+		m, cmd := handleError(m, msg.err)
+		return m, cmd
 	case reportsMsg:
 		// Received reports list
 		if msg.err != nil {
-			m.lastError = msg.err
-			m.errorSourceView = m.viewState // Store the view that caused the error
-			m.viewState = ViewError
-			return m, tea.ClearScreen
+			m, cmd := handleError(m, msg.err)
+			return m, cmd
 		}
 		m.reports = msg.reports
 		m.viewState = ViewReportsList
@@ -152,10 +148,8 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case issuesMsg:
 		// Received issues list
 		if msg.err != nil {
-			m.lastError = msg.err
-			m.errorSourceView = m.viewState // Store the view that caused the error
-			m.viewState = ViewError
-			return m, tea.ClearScreen
+			m, cmd := handleError(m, msg.err)
+			return m, cmd
 		}
 		m.issues = msg.issues
 		m.viewState = ViewIssuesList
@@ -164,10 +158,8 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case issueWorkflowStartedMsg:
 		// Issue workflow started - check if event was received
 		if msg.err != nil {
-			m.lastError = msg.err
-			m.errorSourceView = m.viewState // Store the view that caused the error
-			m.viewState = ViewError
-			return m, tea.ClearScreen
+			m, cmd := handleError(m, msg.err)
+			return m, cmd
 		}
 		// Event received - issue generation is complete, go back to base view
 		m.issueWorkflowID = msg.workflowID
@@ -176,10 +168,8 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case issueApprovalReadyMsg:
 		// Issue is ready for approval
 		if msg.err != nil {
-			m.lastError = msg.err
-			m.errorSourceView = m.viewState // Store the view that caused the error
-			m.viewState = ViewError
-			return m, tea.ClearScreen
+			m, cmd := handleError(m, msg.err)
+			return m, cmd
 		}
 		m.currentIssue = msg.issue
 		m.viewState = ViewIssueApproval
@@ -187,10 +177,8 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case issueResultMsg:
 		// Issue approval/rejection sent
 		if msg.err != nil {
-			m.lastError = msg.err
-			m.errorSourceView = m.viewState
-			m.viewState = ViewError
-			return m, tea.ClearScreen
+			m, cmd := handleError(m, msg.err)
+			return m, cmd
 		}
 		// Successfully sent approval/rejection
 		// Update issue status in the database and go back to main view
@@ -211,10 +199,8 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case issueLoadedMsg:
 		// Issue loaded by ID - navigate to detail view
 		if msg.err != nil {
-			m.lastError = msg.err
-			m.errorSourceView = m.viewState
-			m.viewState = ViewError
-			return m, tea.ClearScreen
+			m, cmd := handleError(m, msg.err)
+			return m, cmd
 		}
 		m.currentIssue = msg.issue
 		m.viewState = ViewIssueDetail
@@ -256,20 +242,16 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case resetAppMsg:
 		// Reset app completed
 		if msg.err != nil {
-			m.lastError = msg.err
-			m.errorSourceView = m.viewState
-			m.viewState = ViewError
-			return m, tea.ClearScreen
+			m, cmd := handleError(m, msg.err)
+			return m, cmd
 		}
 		// Successfully reset - stay on base view
 		return m, tea.ClearScreen
 	case forkWorkflowMsg:
 		// Fork workflow completed
 		if msg.err != nil {
-			m.lastError = msg.err
-			m.errorSourceView = m.viewState
-			m.viewState = ViewError
-			return m, tea.ClearScreen
+			m, cmd := handleError(m, msg.err)
+			return m, cmd
 		}
 		// Successfully forked - show success message
 		m.forkSuccessMessage = fmt.Sprintf("Workflow forked successfully! New workflow ID: %s", msg.newWorkflowID)
@@ -279,10 +261,8 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case deleteIssueMsg:
 		// Issue deletion completed
 		if msg.err != nil {
-			m.lastError = msg.err
-			m.errorSourceView = m.viewState
-			m.viewState = ViewError
-			return m, tea.ClearScreen
+			m, cmd := handleError(m, msg.err)
+			return m, cmd
 		}
 		// Successfully deleted - refresh the issues list
 		return m, m.listAllIssues()
@@ -411,6 +391,14 @@ func (m App) updateWorkflowStepsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Update table
 	m.workflowStepsTable, cmd = m.workflowStepsTable.Update(msg)
 	return m, cmd
+}
+
+// handleError sets error state and transitions to error view
+func handleError(m App, err error) (App, tea.Cmd) {
+	m.lastError = err
+	m.errorSourceView = m.viewState
+	m.viewState = ViewError
+	return m, tea.ClearScreen
 }
 
 // buildTable creates a styled table with the given columns and rows
