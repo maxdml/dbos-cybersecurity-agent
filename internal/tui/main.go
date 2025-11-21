@@ -7,9 +7,11 @@ import (
 	"sec-agent/internal/app"
 
 	"github.com/charmbracelet/bubbles/progress"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/dbos-inc/dbos-transact-golang/dbos"
 )
 
@@ -37,6 +39,7 @@ const (
 	ViewIssueDetail
 	ViewIssueApproval
 	ViewIssueResult
+	ViewIssueGenerating
 	ViewError
 )
 
@@ -79,6 +82,7 @@ type App struct {
 	checkingPendingScan      bool   // Flag to track if we're checking for pending scan from menu
 	isResumedWorkflow        bool   // Flag to track if the current workflow was resumed
 	forkSuccessMessage       string // Message to show when fork is successful
+	issueGeneratingSpinner   spinner.Model
 }
 
 // initialModel returns the initial model
@@ -96,6 +100,10 @@ func initialModel(dbosCtx dbos.DBOSContext, db *sql.DB) App {
 
 	prog := progress.New(progress.WithDefaultGradient())
 	prog.Width = defaultWidth
+
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("62"))
 
 	return App{
 		dbosCtx:                  dbosCtx,
@@ -115,6 +123,7 @@ func initialModel(dbosCtx dbos.DBOSContext, db *sql.DB) App {
 		scanWorkflowID:           "",
 		checkingPendingScan:      false,
 		isResumedWorkflow:        false,
+		issueGeneratingSpinner:   sp,
 	}
 }
 

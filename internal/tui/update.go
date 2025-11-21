@@ -162,14 +162,15 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.issuesTable = m.buildIssuesTable()
 		return m, tea.ClearScreen
 	case issueWorkflowStartedMsg:
-		// Issue workflow started - redirect to base view
+		// Issue workflow started - check if event was received
 		if msg.err != nil {
 			m.lastError = msg.err
 			m.errorSourceView = m.viewState // Store the view that caused the error
 			m.viewState = ViewError
 			return m, tea.ClearScreen
 		}
-		// Workflow started successfully, go back to base view
+		// Event received - issue generation is complete, go back to base view
+		m.issueWorkflowID = msg.workflowID
 		m.viewState = ViewBase
 		return m, tea.ClearScreen
 	case issueApprovalReadyMsg:
@@ -275,6 +276,16 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lastError = nil
 		// Refresh steps to show updated state
 		return m, m.getWorkflowSteps()
+	case deleteIssueMsg:
+		// Issue deletion completed
+		if msg.err != nil {
+			m.lastError = msg.err
+			m.errorSourceView = m.viewState
+			m.viewState = ViewError
+			return m, tea.ClearScreen
+		}
+		// Successfully deleted - refresh the issues list
+		return m, m.listAllIssues()
 	}
 
 	// Route to view-specific update handlers
@@ -299,6 +310,8 @@ func (m App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.updateIssueApprovalView(msg)
 	case ViewIssueResult:
 		return m.updateIssueResultView(msg)
+	case ViewIssueGenerating:
+		return m.updateIssueGeneratingView(msg)
 	case ViewError:
 		return m.updateErrorView(msg)
 	default:
@@ -400,6 +413,40 @@ func (m App) updateWorkflowStepsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// buildTable creates a styled table with the given columns and rows
+func buildTable(columns []table.Column, rows []table.Row) table.Model {
+	// Calculate height: show all rows up to a maximum of 10
+	// Height includes the header row, so we add 1
+	height := len(rows) + 1
+	if height > 11 {
+		height = 11
+	}
+	// Ensure minimum height of at least 2 (1 header + 1 empty row) to show something
+	if height < 2 {
+		height = 2
+	}
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows),
+		table.WithFocused(true),
+		table.WithHeight(height),
+	)
+
+	s := table.DefaultStyles()
+	s.Header = s.Header.
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		BorderBottom(true).
+		Bold(true)
+	s.Selected = s.Selected.
+		Foreground(lipgloss.Color("229")).
+		Background(lipgloss.Color("57")).
+		Bold(false)
+	t.SetStyles(s)
+
+	return t
+}
+
 func (m App) buildWorkflowsTable() table.Model {
 	columns := []table.Column{
 		{Title: "ID", Width: 20},
@@ -434,36 +481,7 @@ func (m App) buildWorkflowsTable() table.Model {
 		})
 	}
 
-	// Calculate height: show all rows up to a maximum of 10
-	// Height includes the header row, so we add 1
-	height := len(rows) + 1
-	if height > 11 {
-		height = 11
-	}
-	// Ensure minimum height of at least 2 (1 header + 1 empty row) to show something
-	if height < 2 {
-		height = 2
-	}
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(height),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(true)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
-		Bold(false)
-	t.SetStyles(s)
-
-	return t
+	return buildTable(columns, rows)
 }
 
 func (m App) updateIssuesView(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -489,6 +507,18 @@ func (m App) updateIssuesView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if selectedIndex >= 0 && selectedIndex < len(m.issues) {
 				selectedIssueID := m.issues[selectedIndex].ID
 				return m, m.loadIssueByID(selectedIssueID)
+			}
+		case "d", "D":
+			// Delete the selected issue
+			if len(m.issues) == 0 {
+				// Update table and return if no issues
+				m.issuesTable, cmd = m.issuesTable.Update(msg)
+				return m, cmd
+			}
+			selectedIndex := m.issuesTable.Cursor()
+			if selectedIndex >= 0 && selectedIndex < len(m.issues) {
+				selectedIssueID := m.issues[selectedIndex].ID
+				return m, m.deleteIssue(selectedIssueID)
 			}
 		}
 	}
@@ -597,36 +627,7 @@ func (m App) buildIssuesTable() table.Model {
 		})
 	}
 
-	// Calculate height: show all rows up to a maximum of 10
-	// Height includes the header row, so we add 1
-	height := len(rows) + 1
-	if height > 11 {
-		height = 11
-	}
-	// Ensure minimum height of at least 2 (1 header + 1 empty row) to show something
-	if height < 2 {
-		height = 2
-	}
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(height),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(true)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
-		Bold(false)
-	t.SetStyles(s)
-
-	return t
+	return buildTable(columns, rows)
 }
 
 func (m App) updateIssueApprovalView(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -700,36 +701,7 @@ func (m App) buildWorkflowStepsTable() table.Model {
 		})
 	}
 
-	// Calculate height: show all rows up to a maximum of 10
-	// Height includes the header row, so we add 1
-	height := len(rows) + 1
-	if height > 11 {
-		height = 11
-	}
-	// Ensure minimum height of at least 2 (1 header + 1 empty row) to show something
-	if height < 2 {
-		height = 2
-	}
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(height),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(true)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
-		Bold(false)
-	t.SetStyles(s)
-
-	return t
+	return buildTable(columns, rows)
 }
 
 func (m App) updateScanningView(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -771,6 +743,22 @@ func (m App) updateScanResultsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m App) updateIssueGeneratingView(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	// While generating, only allow Ctrl+C to quit
+	// The issueWorkflowStartedMsg will be handled in the main Update function
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		// Allow Ctrl+C to quit even during generation
+		if msg.String() == "ctrl+c" {
+			return m, tea.Quit
+		}
+	}
+	// Update spinner to animate
+	m.issueGeneratingSpinner, cmd = m.issueGeneratingSpinner.Update(msg)
+	return m, cmd
+}
+
 func (m App) updateErrorView(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -805,7 +793,11 @@ func (m App) updateReportsView(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selectedIndex := m.reportsTable.Cursor()
 			if selectedIndex >= 0 && selectedIndex < len(m.reports) {
 				m.selectedReportID = m.reports[selectedIndex].ID
-				return m, m.startIssueWorkflow(m.selectedReportID)
+				// Switch to generating view and start workflow
+				m.viewState = ViewIssueGenerating
+				// Start the spinner
+				spinnerCmd := m.issueGeneratingSpinner.Tick
+				return m, tea.Batch(tea.ClearScreen, spinnerCmd, m.startIssueWorkflow(m.selectedReportID))
 			}
 		}
 	}
@@ -837,34 +829,5 @@ func (m App) buildReportsTable() table.Model {
 		})
 	}
 
-	// Calculate height: show all rows up to a maximum of 10
-	// Height includes the header row, so we add 1
-	height := len(rows) + 1
-	if height > 11 {
-		height = 11
-	}
-	// Ensure minimum height of at least 2 (1 header + 1 empty row) to show something
-	if height < 2 {
-		height = 2
-	}
-	t := table.New(
-		table.WithColumns(columns),
-		table.WithRows(rows),
-		table.WithFocused(true),
-		table.WithHeight(height),
-	)
-
-	s := table.DefaultStyles()
-	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		BorderBottom(true).
-		Bold(true)
-	s.Selected = s.Selected.
-		Foreground(lipgloss.Color("229")).
-		Background(lipgloss.Color("57")).
-		Bold(false)
-	t.SetStyles(s)
-
-	return t
+	return buildTable(columns, rows)
 }

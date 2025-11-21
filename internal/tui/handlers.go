@@ -239,9 +239,14 @@ func (m App) startIssueWorkflow(reportID int) tea.Cmd {
 		// Get workflow ID immediately
 		workflowID := handle.GetWorkflowID()
 
-		// Don't wait for result - workflow is waiting for approval
-		// Return the workflow ID so we can send approval message later
-		return issueWorkflowStartedMsg{workflowID: workflowID, err: nil}
+		// Wait for the workflow to publish the ISSUE_GENERATED event
+		eventData, err := dbos.GetEvent[string](noCancelCtx, workflowID, "ISSUE_GENERATED", 5*time.Minute)
+		if err != nil {
+			return issueWorkflowStartedMsg{err: fmt.Errorf("failed to wait for issue generation event: %w", err)}
+		}
+
+		// Event received - issue generation is complete
+		return issueWorkflowStartedMsg{workflowID: workflowID, eventData: eventData, err: nil}
 	}
 }
 
@@ -265,6 +270,7 @@ func (m App) sendIssueApproval(workflowID string, approved bool) tea.Cmd {
 // issueWorkflowStartedMsg is sent when the workflow starts
 type issueWorkflowStartedMsg struct {
 	workflowID string
+	eventData  string
 	err        error
 }
 
@@ -370,5 +376,22 @@ func (m App) forkWorkflow(workflowID string, stepNumber int) tea.Cmd {
 		}
 		newID := handle.GetWorkflowID()
 		return forkWorkflowMsg{newWorkflowID: newID, err: nil}
+	}
+}
+
+// deleteIssueMsg is a message type for delete issue result
+type deleteIssueMsg struct {
+	issueID int
+	err     error
+}
+
+// deleteIssue returns a command that deletes an issue by its ID
+func (m App) deleteIssue(issueID int) tea.Cmd {
+	return func() tea.Msg {
+		err := app.DeleteIssue(issueID)
+		if err != nil {
+			return deleteIssueMsg{issueID: issueID, err: fmt.Errorf("failed to delete issue: %w", err)}
+		}
+		return deleteIssueMsg{issueID: issueID, err: nil}
 	}
 }

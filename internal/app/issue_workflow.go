@@ -48,6 +48,12 @@ func IssueWorkflow(ctx dbos.DBOSContext, input IssueWorkflowInput) (string, erro
 		return "", fmt.Errorf("failed to create issue: %w", err)
 	}
 
+	// Publish event to notify that issue generation is complete
+	err = dbos.SetEvent(ctx, "ISSUE_GENERATED", fmt.Sprintf("Issue %d generated for %s", issue.ID, report.RepoName))
+	if err != nil {
+		return "", fmt.Errorf("failed to publish issue generated event: %w", err)
+	}
+
 	// Step 2: Wait for approval/rejection using DBOS.Recv
 	// Receive message on topic "ISSUE_APPROVAL"
 	topic := "ISSUE_APPROVAL"

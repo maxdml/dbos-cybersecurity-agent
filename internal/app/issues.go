@@ -176,3 +176,24 @@ func GetAllIssues() ([]*Issue, error) {
 
 	return issues, nil
 }
+
+// DeleteIssue deletes an issue from the database by its ID
+func DeleteIssue(id int) error {
+	query := `DELETE FROM issues WHERE id = $1`
+
+	result, err := GetDB().Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete issue: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("issue not found")
+	}
+
+	return nil
+}

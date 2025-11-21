@@ -29,6 +29,8 @@ func (m App) View() string {
 		return m.viewIssueApproval()
 	case ViewIssueResult:
 		return m.viewIssueResult()
+	case ViewIssueGenerating:
+		return m.viewIssueGenerating()
 	case ViewError:
 		return m.viewError()
 	default:
@@ -175,7 +177,7 @@ func (m App) viewIssuesList() string {
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderForeground(lipgloss.Color("240"))
 
-	return fmt.Sprintf("Issues\n\n%s\n\nPress Enter to view issue, q to go back.\n", tableStyle.Render(m.issuesTable.View()))
+	return fmt.Sprintf("Issues\n\n%s\n\nPress Enter to view issue, [d] to delete selected issue, q to go back.\n", tableStyle.Render(m.issuesTable.View()))
 }
 
 func (m App) viewIssueDetail() string {
@@ -270,6 +272,18 @@ func (m App) viewIssueResult() string {
 	return s
 }
 
+func (m App) viewIssueGenerating() string {
+	const padding = 2
+	pad := strings.Repeat(" ", padding)
+
+	s := "\nGenerating issue...\n\n"
+	s += pad + m.issueGeneratingSpinner.View() + " Please wait while the issue is being generated.\n"
+	s += pad + "This may take a few moments...\n"
+	s += "\n" + pad + "Press Ctrl+C to quit.\n"
+
+	return s
+}
+
 func (m App) viewError() string {
 	s := "Error\n\n"
 
@@ -310,6 +324,8 @@ func getViewName(view ViewState) string {
 		return "Issue Approval"
 	case ViewIssueResult:
 		return "Issue Result"
+	case ViewIssueGenerating:
+		return "Issue Generating"
 	case ViewError:
 		return "Error View"
 	default:
