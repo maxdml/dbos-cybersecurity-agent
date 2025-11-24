@@ -16,17 +16,6 @@ services:
       timeout: 5s
       retries: 5
 
-  ollama:
-    image: ollama/ollama
-    container_name: ollama
-    environment:
-      - OLLAMA_NUM_CTX=16384
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-
 volumes:
   postgres_data:
-  ollama_data:
 
