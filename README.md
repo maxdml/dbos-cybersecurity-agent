@@ -37,6 +37,10 @@ hasVuln, err := dbos.RunAsStep(ctx, func(ctx context.Context) (bool, error) {
 
 If the workflow is interrupted after processing 3 out of 10 reports, it will automatically resume and continue from report 4 when restarted.
 
+![Durable Workflow Demonstration](durableworkflow.gif)
+
+*This GIF demonstrates a scan workflow being interrupted mid-execution and then automatically resuming from where it left off after restarting the application.*
+
 ### 2. Long-Lived Workflows with Human-in-the-Loop
 
 The `IssueWorkflow` demonstrates how workflows can wait indefinitely for human interaction using DBOS's `Recv` pattern:
