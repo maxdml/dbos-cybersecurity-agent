@@ -52,12 +52,9 @@ func initDBOS() (dbos.DBOSContext, error) {
 		return nil, fmt.Errorf("DBOS_SYSTEM_DATABASE_URL environment variable is not set")
 	}
 
-	conductorKey := os.Getenv("DBOS_CONDUCTOR_KEY")
-
 	ctx, err := dbos.NewDBOSContext(context.Background(), dbos.Config{
 		AppName:            "dbos-cybersec-agent",
 		DatabaseURL:        databaseURL,
-		ConductorAPIKey:    conductorKey,
 		Logger:             slog.New(slog.NewTextHandler(io.Discard, nil)),
 		ApplicationVersion: "dev",
 	})
