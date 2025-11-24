@@ -8,6 +8,10 @@ This application showcases how DBOS Transact enables developers to build resilie
 - Use events and messaging for workflow coordination
 - Fork workflows at specific steps to retry with updated context (especially useful for AI applications)
 
+![Durable Workflow and Human-in-the-Loop Demonstration](durableworkflow.gif)
+
+*This GIF demonstrates a scan workflow being interrupted mid-execution and automatically resuming after restart, as well as the issue validation workflow waiting for human approval using workflow signaling.*
+
 ## What is DBOS Transact?
 
 [DBOS Transact](https://github.com/dbos-inc/dbos-transact-golang) is a lightweight durable workflow orchestration framework built on PostgreSQL. It provides:
@@ -36,10 +40,6 @@ hasVuln, err := dbos.RunAsStep(ctx, func(ctx context.Context) (bool, error) {
 ```
 
 If the workflow is interrupted after processing 3 out of 10 reports, it will automatically resume and continue from report 4 when restarted.
-
-![Durable Workflow Demonstration](durableworkflow.gif)
-
-*This GIF demonstrates a scan workflow being interrupted mid-execution and then automatically resuming from where it left off after restarting the application.*
 
 ### 2. Long-Lived Workflows with Human-in-the-Loop
 
