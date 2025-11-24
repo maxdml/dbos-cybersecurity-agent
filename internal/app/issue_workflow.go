@@ -60,10 +60,7 @@ func IssueWorkflow(ctx dbos.DBOSContext, input IssueWorkflowInput) (string, erro
 	var approvalStatus string
 	// Capture DBOSContext from outer scope for Recv
 	dbosCtx := ctx
-	approvalStatus, err = dbos.RunAsStep(ctx, func(ctx context.Context) (string, error) {
-		// Recv needs DBOSContext, use the captured one from outer scope
-		return dbos.Recv[string](dbosCtx, topic, 48*time.Hour)
-	}, dbos.WithStepName("waitForApproval"))
+	approvalStatus, err = dbos.Recv[string](dbosCtx, topic, 48*time.Hour)
 	if err != nil {
 		return "", fmt.Errorf("failed to wait for approval: %w", err)
 	}
